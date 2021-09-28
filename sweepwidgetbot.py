@@ -100,17 +100,6 @@ def type_to_element(element, str):
         element.send_keys(c)
 
 
-class Details:
-    def __init__(self, ref, url, to_complete, is_referral, is_email) -> None:
-        self.ref = ref
-        self.url = url
-        self.to_complete = to_complete
-        self.is_referral = (
-            is_referral  # Does this sweepwidget contain a referral field?
-        )
-        self.is_email = is_email  # Does this sweepwidget contains email verification
-
-
 def solve_referral(driver, details):
     try:
         # Check if referral field is found
@@ -214,7 +203,21 @@ def solve_bsc_address(driver, email):
         None
 
 
-todo = [Details("StygeXD", "https://share-w.in/2fdwku-31709", 10, False, False)]
+class Details:
+    def __init__(
+        self, ref, url, to_complete, is_referral, is_email, is_captcha
+    ) -> None:
+        self.ref = ref
+        self.url = url
+        self.to_complete = to_complete
+        self.is_referral = (
+            is_referral  # Does this sweepwidget contain a referral field?
+        )
+        self.is_email = is_email  # Does this sweepwidget contains email verification
+        self.is_captcha = is_captcha
+
+
+todo = [Details("StygeXD", "https://share-w.in/2fdwku-31709", 10, False, False, False)]
 
 
 def run():
@@ -229,7 +232,7 @@ def run():
                 if details.is_referral:
                     solve_referral(driver, details)
                 if (
-                    not details.is_email
+                    details.is_captcha
                 ):  # If there is no email verification, there most likely is no captcha
                     solve_captcha(driver)
 
