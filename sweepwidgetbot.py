@@ -101,21 +101,14 @@ def type_to_element(element, str):
 
 
 class Details:
-    def __init__(self, ref, url, to_complete, is_email) -> None:
+    def __init__(self, ref, url, to_complete, is_referral, is_email) -> None:
         self.ref = ref
         self.url = url
         self.to_complete = to_complete
-        self.is_email = is_email  # Does this sweepwidget contain an email verification?
-
-
-todo = [
-    Details(
-        "StygeXD",
-        "https://share-w.in/2fdwku-31709",
-        10,
-        False,
-    )
-]
+        self.is_referral = (
+            is_referral  # Does this sweepwidget contain a referral field?
+        )
+        self.is_email = is_email  # Does this sweepwidget contains email verification
 
 
 def solve_referral(driver, details):
@@ -132,7 +125,12 @@ def solve_referral(driver, details):
             referral_to_input = details.ref
         type_to_element(referral_field, referral_to_input)
         wait()
+    except Exception as _:
+        None
 
+
+def solve_captcha(driver):
+    try:
         # Wait until captcha is solved
         WebDriverWait(driver, 60).until(
             EC.text_to_be_present_in_element((By.CLASS_NAME, "status"), "Solved")
@@ -216,6 +214,9 @@ def solve_bsc_address(driver, email):
         None
 
 
+todo = [Details("StygeXD", "https://share-w.in/2fdwku-31709", 10, False, False)]
+
+
 def run():
     for details in todo:
         completed = 0
@@ -225,8 +226,12 @@ def run():
             if driver is None:
                 continue
             try:
-                if not details.is_email:
+                if details.is_referral:
                     solve_referral(driver, details)
+                if (
+                    not details.is_email
+                ):  # If there is no email verification, there most likely is no captcha
+                    solve_captcha(driver)
 
                 # Input username
                 username, email = get_random_user()
