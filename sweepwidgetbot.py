@@ -23,6 +23,8 @@ import re
 random.seed(time.time())
 Faker.seed(time.time())
 vpn = PiaVpn()
+json_data = "application/json"
+hex_chars = ["a", "b", "c", "d", "e", "f"]
 
 
 def get_usable_regions(vpn):
@@ -116,6 +118,104 @@ todo = [
 ]
 
 
+def solve_referral(driver, details):
+    try:
+        # Check if referral field is found
+        referral_field = WebDriverWait(driver, 15).until(
+            EC.presence_of_element_located((By.NAME, "referral_source"))
+        )
+        if random.random() < 0.33:
+            referral_to_input = details.ref.lower()
+        elif random.random() < 0.66:
+            referral_to_input = details.ref.capitalize()
+        else:
+            referral_to_input = details.ref
+        type_to_element(referral_field, referral_to_input)
+        wait()
+
+        # Wait until captcha is solved
+        WebDriverWait(driver, 60).until(
+            EC.text_to_be_present_in_element((By.CLASS_NAME, "status"), "Solved")
+        )
+        driver.find_element_by_name("security_check_submit").click()
+        wait()
+    except Exception as _:
+        None
+
+
+def get_email_details():
+    response_create = requests.put(url="https://www.developermail.com/api/v1/mailbox")
+    result = response_create.json()
+    email_name = result["result"]["name"]
+    return f"{email_name}@developermail.com", email_name, result["result"]["token"]
+
+
+def solve_email_ver(driver, token, email_name):
+    verify_email_1 = WebDriverWait(driver, 15).until(
+        EC.presence_of_element_located((By.ID, "verify_email_input_1"))
+    )
+    verify_email_2 = driver.find_element_by_id("verify_email_input_2")
+    verify_email_3 = driver.find_element_by_id("verify_email_input_3")
+    verify_email_4 = driver.find_element_by_id("verify_email_input_4")
+    while True:
+        response_ids = requests.get(
+            url=f"https://www.developermail.com/api/v1/mailbox/{email_name}",
+            headers={
+                "accept": json_data,
+                "X-MailboxToken": token,
+            },
+        )
+        result = response_ids.json()["result"]
+        if len(result) > 0:
+            email_id = result[0]
+            break
+    email_data = f'["{email_id}"]'
+    response_msg = requests.post(
+        url=f"https://www.developermail.com/api/v1/mailbox/{email_name}/messages",
+        headers={
+            "accept": json_data,
+            "X-MailboxToken": token,
+            "Content-Type": json_data,
+        },
+        data=email_data,
+    )
+    email_final = response_msg.json()["result"][0]["value"]
+    match = re.search(string=email_final, pattern="[>][0-9]{4}[<]")
+    nums = [c for c in match.group(0) if c.isalnum()]
+    type_to_element(verify_email_1, nums[0])
+    type_to_element(verify_email_2, nums[1])
+    type_to_element(verify_email_3, nums[2])
+    type_to_element(verify_email_4, nums[3])
+    wait()
+    verify_email_submit = driver.find_element_by_id("verify_email_submit")
+    verify_email_submit.click()
+
+
+def generate_bsc():
+    address = "0x"
+    for _ in range(40):
+        random_number = str(random.randint(0, 9))
+        random_char = random.choice(hex_chars)
+        if random.random() < 0.5:
+            address += random_number
+        else:
+            if random.random() < 0.5:
+                random_char = random_char.capitalize()
+            address += random_char
+    return address
+
+
+def solve_bsc_address(driver, email):
+    try:
+        bsc_address = generate_bsc()
+        bsc_field = driver.find_element_by_id("sw_text_input_8_1")
+        bsc_field.clear()
+        type_to_element(bsc_address, email)
+        wait()
+    except Exception as _:
+        None
+
+
 def run():
     for details in todo:
         completed = 0
@@ -126,32 +226,7 @@ def run():
                 continue
             try:
                 if not details.is_email:
-                    try:
-                        # Check if referral field is found
-                        referral_field = WebDriverWait(driver, 15).until(
-                            EC.presence_of_element_located((By.NAME, "referral_source"))
-                        )
-                        if random.random() < 0.33:
-                            referral_to_input = details.ref.lower()
-                        elif random.random() < 0.66:
-                            referral_to_input = details.ref.capitalize()
-                        else:
-                            referral_to_input = details.ref
-                        type_to_element(referral_field, referral_to_input)
-                        wait()
-                    except Exception as _:
-                        None
-                    try:
-                        # Wait until captcha is solved
-                        WebDriverWait(driver, 60).until(
-                            EC.text_to_be_present_in_element(
-                                (By.CLASS_NAME, "status"), "Solved"
-                            )
-                        )
-                        driver.find_element_by_name("security_check_submit").click()
-                        wait()
-                    except Exception as _:
-                        None
+                    solve_referral(driver, details)
 
                 # Input username
                 username, email = get_random_user()
@@ -163,13 +238,7 @@ def run():
                 wait()
 
                 if details.is_email:
-                    response_create = requests.put(
-                        url="https://www.developermail.com/api/v1/mailbox"
-                    )
-                    result = response_create.json()
-                    email_name = result["result"]["name"]
-                    token = result["result"]["token"]
-                    email = f"{email_name}@developermail.com"
+                    email, email_name, token = get_email_details()
 
                 # Input email
                 email_field = WebDriverWait(driver, 15).until(
@@ -179,6 +248,8 @@ def run():
                 type_to_element(email_field, email)
                 wait()
 
+                solve_bsc_address(driver, email)
+
                 # Send form
                 enter_button = WebDriverWait(driver, 15).until(
                     EC.presence_of_element_located((By.NAME, "sw_login"))
@@ -187,46 +258,7 @@ def run():
                 wait()
 
                 if details.is_email:
-                    verify_email_1 = WebDriverWait(driver, 15).until(
-                        EC.presence_of_element_located((By.ID, "verify_email_input_1"))
-                    )
-                    verify_email_2 = driver.find_element_by_id("verify_email_input_2")
-                    verify_email_3 = driver.find_element_by_id("verify_email_input_3")
-                    verify_email_4 = driver.find_element_by_id("verify_email_input_4")
-                    while True:
-                        response_ids = requests.get(
-                            url=f"https://www.developermail.com/api/v1/mailbox/{email_name}",
-                            headers={
-                                "accept": "application/json",
-                                "X-MailboxToken": token,
-                            },
-                        )
-                        result = response_ids.json()["result"]
-                        if len(result) > 0:
-                            email_id = result[0]
-                            break
-                    email_data = f'["{email_id}"]'
-                    response_msg = requests.post(
-                        url=f"https://www.developermail.com/api/v1/mailbox/{email_name}/messages",
-                        headers={
-                            "accept": "application/json",
-                            "X-MailboxToken": token,
-                            "Content-Type": "application/json",
-                        },
-                        data=email_data,
-                    )
-                    email_final = response_msg.json()["result"][0]["value"]
-                    match = re.search(string=email_final, pattern="[>][0-9]{4}[<]")
-                    nums = [c for c in match.group(0) if c.isalnum()]
-                    type_to_element(verify_email_1, nums[0])
-                    type_to_element(verify_email_2, nums[1])
-                    type_to_element(verify_email_3, nums[2])
-                    type_to_element(verify_email_4, nums[3])
-                    wait()
-                    verify_email_submit = driver.find_element_by_id(
-                        "verify_email_submit"
-                    )
-                    verify_email_submit.click()
+                    solve_email_ver(driver, token, email_name)
 
                 # Wait for a bit to see if send was succesful
                 WebDriverWait(driver, 10).until(
