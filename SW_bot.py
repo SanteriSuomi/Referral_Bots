@@ -96,9 +96,9 @@ def run():
             if not connect_vpn():
                 continue  # Continue if something went wrong while connecting VPN
             driver = get_browser_driver(details)
-            if driver is None:
-                raise TimeoutException()  # Continue if something went wrong while creating browser driver
             try:
+                if driver is None:
+                    raise TimeoutException()  # Continue if something went wrong while creating browser driver
                 if details.has_referral:
                     solve_referral(driver, details)
                 if details.has_captcha:
@@ -130,7 +130,7 @@ def run():
                 UnexpectedAlertPresentException,
                 StaleElementReferenceException,
             ) as _:
-                reset(vpn, driver)
+                reset(vpn, driver, details)
                 continue
             except Exception as e:
                 print(f"{type(e).__name__}: {e}")
@@ -139,7 +139,7 @@ def run():
             print(
                 f"{driver.title}: completed {completed} out of {details.amount_to_complete}."
             )
-            reset(vpn, driver)
+            reset(vpn, driver, details)
     print("Finished!")
 
 
