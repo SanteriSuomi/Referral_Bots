@@ -26,7 +26,7 @@ vpn = PiaVpn()
 json_data = "application/json"
 hex_chars = ["a", "b", "c", "d", "e", "f"]
 
-vpn_regions = get_usable_regions(vpn)
+vpn_regions = [r for r in vpn.regions() if r.find("streaming") == -1]
 email_domains = [
     "gmail.com",
     "outlook.com",
@@ -61,7 +61,7 @@ class Details:
         # and you should find the id="XXXX" in the dev tools window), the reason this needs to be is because this field ID
         # can change from SW to SW
     ) -> None:
-        self.url = sw_url
+        self.sw_url = sw_url
         self.amount_to_complete = amount_to_complete
         self.has_referral = has_referral
         self.referral_name = referral_name
@@ -109,7 +109,7 @@ def run():
                 solve_email(driver, email)
 
                 if details.has_bsc_address_field:
-                    solve_bsc_address(driver)
+                    solve_bsc_address(driver, details.bsc_address_field_id)
 
                 send_form(driver)
 
@@ -300,10 +300,10 @@ def generate_bsc():
     return address
 
 
-def solve_bsc_address(driver):
+def solve_bsc_address(driver, bsc_address_field_id):
     try:
         bsc_address = generate_bsc()
-        bsc_field = driver.find_element_by_id("sw_text_input_15_1")
+        bsc_field = driver.find_element_by_id(bsc_address_field_id)
         bsc_field.clear()
         type_to_element(bsc_field, bsc_address)
         wait()
