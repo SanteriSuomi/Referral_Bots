@@ -60,6 +60,8 @@ class Details:
         # corresponds to the field (right click in browser -> inspect -> hover over the field,
         # and you should find the id="XXXX" in the dev tools window), the reason this needs to be is because this field ID
         # can change from SW to SW
+        extra_time,  # Range of extra time in seconds added after each loop to make the bot appear more legit.
+        # e.g (30, 60) for 30-60 second extra time. 0 for both if none
     ) -> None:
         self.sw_url = sw_url
         self.amount_to_complete = amount_to_complete
@@ -69,6 +71,7 @@ class Details:
         self.has_captcha = has_captcha
         self.has_bsc_address_field = has_bsc_address_field
         self.bsc_address_field_id = bsc_address_field_id
+        self.extra_time = extra_time
 
 
 todo = [
@@ -81,6 +84,7 @@ todo = [
         has_captcha=False,
         has_bsc_address_field=False,
         bsc_address_field_id="sw_text_input_15_1",
+        extra_time=(0, 0),
     )
 ]
 
@@ -93,7 +97,7 @@ def run():
                 continue  # Continue if something went wrong while connecting VPN
             driver = get_browser_driver(details)
             if driver is None:
-                continue  # Continue if something went wrong while creating browser driver
+                raise TimeoutException()  # Continue if something went wrong while creating browser driver
             try:
                 if details.has_referral:
                     solve_referral(driver, details)
@@ -185,17 +189,18 @@ def get_browser_driver(details):
         executable_path=r"C:\Users\glorious\geckodriver.exe", firefox_profile=profile
     )
     try:
-        driver.get(details.url)
+        driver.get(details.sw_url)
     except Exception as _:
         return None
     return driver
 
 
-def reset(vpn, driver):
+def reset(vpn, driver, details):
     driver.close()
     vpn.disconnect()
     while vpn.status() != "Disconnected":
         time.sleep(0.01)
+    time.sleep(random.randint(details.extra_time[0], details.extra_time[1]))
 
 
 def wait():
@@ -215,11 +220,11 @@ def solve_referral(driver, details):
             EC.presence_of_element_located((By.NAME, "referral_source"))
         )
         if random.random() < 0.33:
-            referral_to_input = details.ref.lower()
+            referral_to_input = details.referral_name.lower()
         elif random.random() < 0.66:
-            referral_to_input = details.ref.capitalize()
+            referral_to_input = details.referral_name.capitalize()
         else:
-            referral_to_input = details.ref
+            referral_to_input = details.referral_name
         type_to_element(referral_field, referral_to_input)
         wait()
     except Exception as _:
@@ -302,10 +307,9 @@ def generate_bsc():
 
 def solve_bsc_address(driver, bsc_address_field_id):
     try:
-        bsc_address = generate_bsc()
         bsc_field = driver.find_element_by_id(bsc_address_field_id)
         bsc_field.clear()
-        type_to_element(bsc_field, bsc_address)
+        type_to_element(bsc_field, generate_bsc())
         wait()
     except Exception as _:
         None
@@ -318,6 +322,11 @@ def send_form(driver):
     )
     enter_button.click()
     wait()
+    try:
+        alert = driver.switch_to.alert
+        alert.accept()
+    except Exception as _:
+        None
 
 
 def solve_email(driver, email):
