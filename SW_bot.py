@@ -99,6 +99,7 @@ def run():
             try:
                 if driver is None:
                     raise TimeoutException()  # Continue if something went wrong while creating browser driver
+
                 if details.has_referral:
                     solve_referral(driver, details)
                 if details.has_captcha:
@@ -141,10 +142,6 @@ def run():
             )
             reset(vpn, driver, details)
     print("Finished!")
-
-
-def get_usable_regions(vpn):  # Get all PIA regions which are not streaming optimized
-    return [r for r in vpn.regions() if r.find("streaming") == -1]
 
 
 def get_random_user():
@@ -196,7 +193,8 @@ def get_browser_driver(details):
 
 
 def reset(vpn, driver, details):
-    driver.close()
+    if driver:
+        driver.close()
     vpn.disconnect()
     while vpn.status() != "Disconnected":
         time.sleep(0.01)
@@ -324,7 +322,8 @@ def send_form(driver):
     wait()
     try:
         alert = driver.switch_to.alert
-        alert.accept()
+        alert.dismiss()
+        wait()
     except Exception as _:
         None
 
