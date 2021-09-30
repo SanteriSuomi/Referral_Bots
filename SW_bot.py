@@ -11,7 +11,6 @@ from selenium.common.exceptions import (
 from selenium.common.exceptions import NoSuchWindowException
 
 from faker import Faker
-from faker.providers import user_agent
 
 import shutil
 import random
@@ -20,11 +19,21 @@ from piapy import PiaVpn
 import requests
 import re
 
+import os
+import pathlib
+import traceback
+
+from datetime import datetime as dt
+
 random.seed(time.time())
 Faker.seed(time.time())
 vpn = PiaVpn()
 json_data = "application/json"
 hex_chars = ["a", "b", "c", "d", "e", "f"]
+path = (
+    pathlib.Path().home() / "Desktop" / "bot_log.txt"
+)  # Where log file will be stored
+
 
 vpn_regions = [r for r in vpn.regions() if r.find("streaming") == -1]
 email_domains = [
@@ -40,8 +49,6 @@ email_domains = [
     "email.com",
 ]
 
-fake_ua = Faker()
-fake_ua.add_provider(user_agent)
 fake_per = Faker(["en", "en_GB", "en_IE", "en_NZ", "en_TH", "en_US"])
 fake_email = Faker(["en", "en_GB", "en_IE", "en_NZ", "en_TH", "en_US"])
 
@@ -76,8 +83,8 @@ class Details:
 
 todo = [
     Details(
-        sw_url="https://sweepwidget.com/view/34264-cqp2ymtg/1ubzhp-34264",
-        amount_to_complete=50,
+        sw_url="https://sweepwidget.com/view/33937-643t8fwv/978f34-33937",
+        amount_to_complete=2,
         has_referral=False,
         referral_name="StygeXD",
         has_email_verification=False,
@@ -131,10 +138,11 @@ def run():
                 UnexpectedAlertPresentException,
                 StaleElementReferenceException,
             ) as _:
+                write_to_log()
                 reset(vpn, driver, details)
                 continue
-            except Exception as e:
-                print(f"{type(e).__name__}: {e}")
+            except Exception as _:
+                write_to_log()
                 None
             completed += 1
             print(
@@ -174,6 +182,7 @@ def connect_vpn():
             time.sleep(0.01)
         return True
     except Exception as _:
+        write_to_log()
         return False
 
 
@@ -188,6 +197,7 @@ def get_browser_driver(details):
     try:
         driver.get(details.sw_url)
     except Exception as _:
+        write_to_log()
         return None
     return driver
 
@@ -226,18 +236,20 @@ def solve_referral(driver, details):
         type_to_element(referral_field, referral_to_input)
         wait()
     except Exception as _:
+        write_to_log()
         None
 
 
 def solve_captcha(driver):
     try:
         # Wait until captcha is solved
-        WebDriverWait(driver, 60).until(
+        WebDriverWait(driver, 70).until(
             EC.text_to_be_present_in_element((By.CLASS_NAME, "status"), "Solved")
         )
         driver.find_element_by_name("security_check_submit").click()
         wait()
     except Exception as _:
+        write_to_log()
         None
 
 
@@ -249,44 +261,48 @@ def get_email_details():
 
 
 def solve_email_verification(driver, token, email_name):
-    verify_email_1 = WebDriverWait(driver, 15).until(
-        EC.presence_of_element_located((By.ID, "verify_email_input_1"))
-    )
-    verify_email_2 = driver.find_element_by_id("verify_email_input_2")
-    verify_email_3 = driver.find_element_by_id("verify_email_input_3")
-    verify_email_4 = driver.find_element_by_id("verify_email_input_4")
-    while True:
-        response_ids = requests.get(
-            url=f"https://www.developermail.com/api/v1/mailbox/{email_name}",
+    try:
+        verify_email_1 = WebDriverWait(driver, 15).until(
+            EC.presence_of_element_located((By.ID, "verify_email_input_1"))
+        )
+        verify_email_2 = driver.find_element_by_id("verify_email_input_2")
+        verify_email_3 = driver.find_element_by_id("verify_email_input_3")
+        verify_email_4 = driver.find_element_by_id("verify_email_input_4")
+        while True:
+            response_ids = requests.get(
+                url=f"https://www.developermail.com/api/v1/mailbox/{email_name}",
+                headers={
+                    "accept": json_data,
+                    "X-MailboxToken": token,
+                },
+            )
+            result = response_ids.json()["result"]
+            if len(result) > 0:
+                email_id = result[0]
+                break
+        email_data = f'["{email_id}"]'
+        response_msg = requests.post(
+            url=f"https://www.developermail.com/api/v1/mailbox/{email_name}/messages",
             headers={
                 "accept": json_data,
                 "X-MailboxToken": token,
+                "Content-Type": json_data,
             },
+            data=email_data,
         )
-        result = response_ids.json()["result"]
-        if len(result) > 0:
-            email_id = result[0]
-            break
-    email_data = f'["{email_id}"]'
-    response_msg = requests.post(
-        url=f"https://www.developermail.com/api/v1/mailbox/{email_name}/messages",
-        headers={
-            "accept": json_data,
-            "X-MailboxToken": token,
-            "Content-Type": json_data,
-        },
-        data=email_data,
-    )
-    email_final = response_msg.json()["result"][0]["value"]
-    match = re.search(string=email_final, pattern="[>][0-9]{4}[<]")
-    nums = [c for c in match.group(0) if c.isalnum()]
-    type_to_element(verify_email_1, nums[0])
-    type_to_element(verify_email_2, nums[1])
-    type_to_element(verify_email_3, nums[2])
-    type_to_element(verify_email_4, nums[3])
-    wait()
-    verify_email_submit = driver.find_element_by_id("verify_email_submit")
-    verify_email_submit.click()
+        email_final = response_msg.json()["result"][0]["value"]
+        match = re.search(string=email_final, pattern="[>][0-9]{4}[<]")
+        nums = [c for c in match.group(0) if c.isalnum()]
+        type_to_element(verify_email_1, nums[0])
+        type_to_element(verify_email_2, nums[1])
+        type_to_element(verify_email_3, nums[2])
+        type_to_element(verify_email_4, nums[3])
+        wait()
+        verify_email_submit = driver.find_element_by_id("verify_email_submit")
+        verify_email_submit.click()
+    except Exception as _:
+        write_to_log()
+        None
 
 
 def generate_bsc():
@@ -310,6 +326,7 @@ def solve_bsc_address(driver, bsc_address_field_id):
         type_to_element(bsc_field, generate_bsc())
         wait()
     except Exception as _:
+        write_to_log()
         None
 
 
@@ -321,10 +338,10 @@ def send_form(driver):
     enter_button.click()
     wait()
     try:
-        alert = driver.switch_to.alert
-        alert.dismiss()
-        wait()
+        WebDriverWait(driver, 5).until(EC.alert_is_present())
+        driver.switch_to.alert.dismiss()
     except Exception as _:
+        write_to_log()
         None
 
 
@@ -346,6 +363,23 @@ def solve_username(driver, username):
     username_field.clear()
     type_to_element(username_field, username)
     wait()
+
+
+def write_to_log():
+    with open(path, "a+") as f:
+        time = dt.now().strftime("%d-%m-%Y %H:%M:%S")
+        f.write(
+            f"""---{time}---
+        
+        {traceback.format_exc()}
+-------------------------
+        \n"""
+        )
+
+
+def delete_log():
+    if os.path.exists(path):
+        os.remove(path)
 
 
 run()
