@@ -9,6 +9,7 @@ from selenium.common.exceptions import (
     UnexpectedAlertPresentException,
 )
 from selenium.common.exceptions import NoSuchWindowException
+from selenium.webdriver import DesiredCapabilities
 
 from faker import Faker
 
@@ -41,12 +42,7 @@ email_domains = [
     "outlook.com",
     "yahoo.com",
     "hotmail.com",
-    "icloud.com",
-    "mail.com",
-    "protonmail.com",
-    "yandex.com",
-    "zoho.com",
-    "email.com",
+    "gmx.com",
 ]
 
 fake_per = Faker(["en", "en_GB", "en_IE", "en_NZ", "en_TH", "en_US"])
@@ -106,6 +102,7 @@ def run():
             try:
                 if driver is None:
                     raise TimeoutException()  # Continue if something went wrong while creating browser driver
+                wait()
 
                 if details.has_referral:
                     solve_referral(driver, details)
@@ -129,7 +126,7 @@ def run():
                     solve_email_verification(driver, token, email_name)
 
                 # Wait for a bit to see if send was succesful, if it was, close immediately to save time
-                WebDriverWait(driver, 10).until(
+                WebDriverWait(driver, 20).until(
                     EC.presence_of_element_located((By.CLASS_NAME, "sw_share_link"))
                 )
             except (
@@ -153,21 +150,30 @@ def run():
 
 
 def get_random_user():
-    if random.random() < 0.5:
+    rand = random.random()
+    if rand < 0.33:
         username = fake_per.name()
-    else:
+    elif rand < 0.66:
         username = fake_per.first_name()
-    if random.random() < 0.5:
+    else:
+        username = fake_per.last_name()
+
+    rand = random.random()
+    if rand < 0.33:
         username = username.lower()
-    if random.random() < 0.25:
-        username += str(int(random.uniform(0, 1001)))
+    elif rand < 0.66:
+        username = username.capitalize()
 
     username_email = fake_email.first_name()
     if random.random() < 0.5:
-        username_email += fake_email.first_name()
-    username_email = username_email.replace(" ", "").lower()
+        username_email += fake_email.last_name()
     if random.random() < 0.5:
-        email = f"{username_email}{int(random.uniform(0, 1001))}@{random.choice(email_domains)}"
+        username_email = username_email.replace(" ", "").lower()
+    else:
+        username_email = username_email.replace(" ", "")
+
+    if random.random() < 0.5:
+        email = f"{username_email}{int(random.uniform(0, 100))}@{random.choice(email_domains)}"
     else:
         email = f"{username_email}@{random.choice(email_domains)}"
 
@@ -191,8 +197,13 @@ def get_browser_driver(details):
     profile = FirefoxProfile(
         r"C:\Users\glorious\AppData\Roaming\Mozilla\Firefox\Profiles\qcdanr2x.default-release"
     )
+    profile.set_preference("dom.webdriver.enabled", False)
+    profile.set_preference("dom.disable_beforeunload", True)
+    profile.update_preferences()
     driver = webdriver.Firefox(
-        executable_path=r"C:\Users\glorious\geckodriver.exe", firefox_profile=profile
+        executable_path=r"C:\Users\glorious\geckodriver.exe",
+        firefox_profile=profile,
+        desired_capabilities=DesiredCapabilities.FIREFOX,
     )
     try:
         driver.get(details.sw_url)
@@ -212,12 +223,12 @@ def reset(vpn, driver, details):
 
 
 def wait():
-    time.sleep(random.uniform(2, 4))
+    time.sleep(random.uniform(1.5, 3.5))
 
 
 def type_to_element(element, str):
     for c in str:
-        time.sleep(random.uniform(0.05, 0.25))
+        time.sleep(random.uniform(0.1, 0.3))
         element.send_keys(c)
 
 
@@ -243,7 +254,7 @@ def solve_referral(driver, details):
 def solve_captcha(driver):
     try:
         # Wait until captcha is solved
-        WebDriverWait(driver, 70).until(
+        WebDriverWait(driver, 75).until(
             EC.text_to_be_present_in_element((By.CLASS_NAME, "status"), "Solved")
         )
         driver.find_element_by_name("security_check_submit").click()
@@ -300,6 +311,7 @@ def solve_email_verification(driver, token, email_name):
         wait()
         verify_email_submit = driver.find_element_by_id("verify_email_submit")
         verify_email_submit.click()
+        wait()
     except Exception as _:
         write_to_log()
         None
@@ -338,7 +350,7 @@ def send_form(driver):
     enter_button.click()
     wait()
     try:
-        WebDriverWait(driver, 5).until(EC.alert_is_present())
+        WebDriverWait(driver, 2).until(EC.alert_is_present())
         driver.switch_to.alert.dismiss()
     except Exception as _:
         write_to_log()
