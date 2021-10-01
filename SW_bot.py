@@ -79,8 +79,8 @@ class Details:
 
 todo = [
     Details(
-        sw_url="https://sweepwidget.com/view/33937-643t8fwv/978f34-33937",
-        amount_to_complete=2,
+        sw_url="https://sweepwidget.com/view/34244-v1dqabji/u1g835-34244",
+        amount_to_complete=50,
         has_referral=False,
         referral_name="StygeXD",
         has_email_verification=False,
@@ -120,13 +120,16 @@ def run():
                 if details.has_bsc_address_field:
                     solve_bsc_address(driver, details.bsc_address_field_id)
 
-                send_form(driver)
+                solve_arithmetic(driver)
+
+                if not send_form(driver):
+                    raise TimeoutException()
 
                 if details.has_email_verification:
                     solve_email_verification(driver, token, email_name)
 
                 # Wait for a bit to see if send was succesful, if it was, close immediately to save time
-                WebDriverWait(driver, 20).until(
+                WebDriverWait(driver, 10).until(
                     EC.presence_of_element_located((By.CLASS_NAME, "sw_share_link"))
                 )
             except (
@@ -149,28 +152,45 @@ def run():
     print("Finished!")
 
 
-def get_random_user():
-    rand = random.random()
-    if rand < 0.33:
-        username = fake_per.name()
-    elif rand < 0.66:
-        username = fake_per.first_name()
-    else:
-        username = fake_per.last_name()
+def solve_arithmetic(driver):
+    try:
+        skill_question = (
+            WebDriverWait(driver, 5).until(
+                EC.presence_of_element_located(
+                    (By.CSS_SELECTOR, "#stq_skill_question + span")
+                )
+            )
+        ).text
+        sq_numbers = []
+        for c in skill_question:
+            if c.isdigit():
+                sq_numbers.append(int(c))
+        skill_question_answer = driver.find_element_by_id("stq_skill_question_answer")
+        sq_answer = str(sq_numbers[0] + sq_numbers[1])
+        type_to_element(skill_question_answer, sq_answer)
+        wait
+    except Exception as _:
+        write_to_log()
+        None
 
+
+def get_random_user():
+    username = fake_per.name()
     rand = random.random()
     if rand < 0.33:
         username = username.lower()
     elif rand < 0.66:
-        username = username.capitalize()
+        username = username.upper()
 
-    username_email = fake_email.first_name()
     if random.random() < 0.5:
-        username_email += fake_email.last_name()
-    if random.random() < 0.5:
-        username_email = username_email.replace(" ", "").lower()
+        username_email = fake_email.name()
     else:
-        username_email = username_email.replace(" ", "")
+        username_email = fake_email.last_name() + fake_email.first_name()
+
+    if random.random() < 0.5:
+        username_email = username_email.replace(".", "").replace(" ", "").lower()
+    else:
+        username_email = username_email.replace(".", "").replace(" ", "")
 
     if random.random() < 0.5:
         email = f"{username_email}{int(random.uniform(0, 100))}@{random.choice(email_domains)}"
@@ -197,8 +217,11 @@ def get_browser_driver(details):
     profile = FirefoxProfile(
         r"C:\Users\glorious\AppData\Roaming\Mozilla\Firefox\Profiles\qcdanr2x.default-release"
     )
+    profile.set_preference("dom.popup_maximum", 0)
+    profile.set_preference("privacy.popups.showBrowserMessage", False)
     profile.set_preference("dom.webdriver.enabled", False)
     profile.set_preference("dom.disable_beforeunload", True)
+    profile.set_preference("privacy.popups.disable_from_plugins", 3)
     profile.update_preferences()
     driver = webdriver.Firefox(
         executable_path=r"C:\Users\glorious\geckodriver.exe",
@@ -223,7 +246,7 @@ def reset(vpn, driver, details):
 
 
 def wait():
-    time.sleep(random.uniform(1.5, 3.5))
+    time.sleep(random.uniform(2, 4))
 
 
 def type_to_element(element, str):
@@ -254,7 +277,7 @@ def solve_referral(driver, details):
 def solve_captcha(driver):
     try:
         # Wait until captcha is solved
-        WebDriverWait(driver, 75).until(
+        WebDriverWait(driver, 60).until(
             EC.text_to_be_present_in_element((By.CLASS_NAME, "status"), "Solved")
         )
         driver.find_element_by_name("security_check_submit").click()
@@ -348,13 +371,17 @@ def send_form(driver):
         EC.presence_of_element_located((By.NAME, "sw_login"))
     )
     enter_button.click()
-    wait()
     try:
-        WebDriverWait(driver, 2).until(EC.alert_is_present())
-        driver.switch_to.alert.dismiss()
+        WebDriverWait(driver, 5).until(EC.alert_is_present())
+        try:
+            driver.switch_to.alert.dismiss()
+        except Exception as _:
+            None
+        return False
     except Exception as _:
         write_to_log()
         None
+    return True
 
 
 def solve_email(driver, email):
