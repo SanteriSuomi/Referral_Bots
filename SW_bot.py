@@ -1,4 +1,7 @@
-from subprocess import run
+###
+### Author Santeri Suomi (boughtthetopkms on telegram), this is WORK IN PROGRESS
+###
+
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.desired_capabilities import DesiredCapabilities
@@ -12,32 +15,32 @@ from selenium.common.exceptions import (
 from selenium.common.exceptions import NoSuchWindowException
 
 from faker import Faker
+from piapy import PiaVpn
+from datetime import datetime as dt
 
 import shutil
 import random
 import time
-from piapy import PiaVpn
 import requests
 import re
-
-import os
-import pathlib
-import traceback
-
-from datetime import datetime as dt
-
 import pyautogui
 import keyboard
 import pygetwindow
+import os
+import pathlib
+import traceback
 
 random.seed(time.time())
 Faker.seed(time.time())
 vpn = PiaVpn()
 json_data = "application/json"
 hex_chars = ["a", "b", "c", "d", "e", "f"]
-path = (
+log_path = (
     pathlib.Path().home() / "Desktop" / "bot_log.txt"
-)  # Where log file will be stored
+)  # Where log file will be stored (if enabled)
+executable_path = r"C:\Users\glorious\geckodriver.exe"  # Path to geckodriver
+profile_path = r"C:\Users\glorious\AppData\Roaming\Mozilla\Firefox\Profiles\qcdanr2x.default-release"  # Path to firefox profile
+temp_path = r"C:\Users\glorious\AppData\Local\Temp"  # Path to temporary files folder. Needs to be cleansed from time to time because otherwise it gets too big
 
 
 vpn_regions = [r for r in vpn.regions() if r.find("streaming") == -1]
@@ -56,22 +59,22 @@ fake_email = Faker(["en", "en_GB", "en_IE", "en_NZ", "en_TH", "en_US"])
 class Details:
     def __init__(
         self,
-        sw_url,  # SW url
-        amount_to_complete,  # How many to complete until stopping
+        sw_url,  # URL of contest
+        amount_to_complete,  # How entries to complete until stopping
         has_referral=False,  # If there is a referral field preset
-        referral_name="",  # If has_referral is true, what referral to enter (your SW username)
+        referral_name="",  # If has_referral is true, what referral to enter (your sweep widget username)
         has_email_verification=False,  # If there is email verification present (asking for a 4 digit code)
-        has_captcha=False,  # If there is a captcha question present at the start
+        has_captcha=False,  # If there is a captcha present at the start
         has_bsc_address_field=False,  # If there is a field asking for BSC wallet address
-        bsc_address_field_id="",  # If has_bsc_address is true, give here the ID of the HTML element that
+        bsc_address_field_id="",  # If has_bsc_address_field is True, give here the ID of the HTML element that
         # corresponds to the field (right click in browser -> inspect -> hover over the field,
         # and you should find the id="XXXX" in the dev tools window), the reason this needs to be is because this field ID
-        # can change from SW to SW
+        # changes ID depending on sweep widget, and I haven't had time to code a search for it
         extra_time=(
             0,
             0,
         ),  # Range of extra time in seconds added after each loop to make the bot appear more legit.
-        # e.g (30, 60) for 30-60 second extra time. 0 for both if none
+        # e.g (30, 60) for 30-60 second extra time. 0 for both if none. Probably not needed as bot is not super fast.
     ) -> None:
         self.sw_url = sw_url
         self.amount_to_complete = amount_to_complete
@@ -84,6 +87,7 @@ class Details:
         self.extra_time = extra_time
 
 
+######## This where you input details about contest you want to do. See above for meanings
 todo = [
     Details(
         sw_url="https://sweepwidget.com/view/34435-xhbjcrqf/88y9ie-34435",
@@ -99,7 +103,7 @@ todo = [
 ]
 
 
-class Bot:
+class Bot:  # Base class for all bots
     def get_random_user(self):
         username = fake_per.name()
         rand = random.random()
@@ -137,10 +141,8 @@ class Bot:
             return False
 
     def get_browser_driver(self, details):
-        shutil.rmtree(r"C:\Users\glorious\AppData\Local\Temp", ignore_errors=True)
-        profile = webdriver.FirefoxProfile(
-            r"C:\Users\glorious\AppData\Roaming\Mozilla\Firefox\Profiles\qcdanr2x.default-release"
-        )
+        shutil.rmtree(temp_path, ignore_errors=True)
+        profile = webdriver.FirefoxProfile(profile_path)
         profile.set_preference("dom.popup_maximum", 0)
         profile.set_preference("privacy.popups.showBrowserMessage", False)
         profile.set_preference("dom.webdriver.enabled", False)
@@ -148,7 +150,7 @@ class Bot:
         profile.set_preference("privacy.popups.disable_from_plugins", 3)
         profile.update_preferences()
         driver = webdriver.Firefox(
-            executable_path=r"C:\Users\glorious\geckodriver.exe",
+            executable_path=executable_path,
             firefox_profile=profile,
             desired_capabilities=DesiredCapabilities.FIREFOX,
         )
@@ -189,7 +191,7 @@ class Bot:
         return address
 
     def write_to_log(self):
-        with open(path, "a+") as f:
+        with open(log_path, "a+") as f:
             time = dt.now().strftime("%d-%m-%Y %H:%M:%S")
             f.write(
                 f"""---{time}---
@@ -200,20 +202,20 @@ class Bot:
             )
 
     def delete_log(self):
-        if os.path.exists(path):
-            os.remove(path)
+        if os.path.exists(log_path):
+            os.remove(log_path)
 
 
-class SW(Bot):
+class SW(Bot):  # Sweep Widget
     def run(self, details):
         completed = 0
         while completed < details.amount_to_complete:
             if not super().connect_vpn():
-                continue  # Continue if something went wrong while connecting VPN
+                continue
             driver = super().get_browser_driver(details)
             try:
                 if driver is None:
-                    raise TimeoutException()  # Continue if something went wrong while creating browser driver
+                    raise TimeoutException()
                 # wait()
                 if details.has_referral:
                     self.solve_referral(driver, details)
@@ -231,8 +233,7 @@ class SW(Bot):
                     raise TimeoutException()
                 if details.has_email_verification:
                     self.solve_email_verification(driver, token, email_name)
-                # Wait for a bit to see if send was succesful, if it was, close immediately to save time
-                WebDriverWait(driver, 15).until(
+                WebDriverWait(driver, 10).until(
                     EC.presence_of_element_located((By.CLASS_NAME, "sw_share_link"))
                 )
             except (
@@ -280,7 +281,6 @@ class SW(Bot):
 
     def solve_referral(self, driver, details):
         try:
-            # Check if referral field is found
             referral_field = WebDriverWait(driver, 15).until(
                 EC.presence_of_element_located((By.NAME, "referral_source"))
             )
@@ -298,7 +298,6 @@ class SW(Bot):
 
     def solve_captcha(self, driver):
         try:
-            # Wait until captcha is solved
             WebDriverWait(driver, 60).until(
                 EC.text_to_be_present_in_element((By.CLASS_NAME, "status"), "Solved")
             )
@@ -371,13 +370,12 @@ class SW(Bot):
             None
 
     def send_form(self, driver):
-        # Send details form
-        enter_button = WebDriverWait(driver, 15).until(
+        enter_button = WebDriverWait(driver, 10).until(
             EC.presence_of_element_located((By.NAME, "sw_login"))
         )
         enter_button.click()
         try:
-            WebDriverWait(driver, 5).until(EC.alert_is_present())
+            WebDriverWait(driver, 10).until(EC.alert_is_present())
             try:
                 driver.switch_to.alert.dismiss()
             except Exception as _:
@@ -389,71 +387,81 @@ class SW(Bot):
         return True
 
     def solve_email(self, driver, email):
-        # Input email
         email_field = WebDriverWait(driver, 15).until(
-            EC.presence_of_element_located((By.NAME, "sw_login_email"))
+            EC.presence_of_element_located((By.NAME, "sw__login_email"))
         )
         email_field.clear()
         super().type_to_element(email_field, email)
         super().wait()
 
     def solve_username(self, driver, username):
-        # Input username
         username_field = WebDriverWait(driver, 30).until(
-            EC.presence_of_element_located((By.NAME, "sw_login_name"))
+            EC.presence_of_element_located((By.NAME, "sw__login_name"))
         )
         username_field.clear()
         super().type_to_element(username_field, username)
         super().wait()
 
 
-class VS(Bot):
+class VS(
+    Bot
+):  # ViralSweep, THIS DOES NOT WORK FOR ALL VIRAL SWEEPS. WILL NEED TO TUNE THE CODE ACCORDINGLY, BECAUSE SELENIUM DOES NOT WORK FOR VIRALSWEEP BECAUSE OF FUCKING CLOUDFLARE. Also, this is very work in progress.
     def run(self, details):
         completed = 0
         while completed < details.amount_to_complete:
             if not super().connect_vpn():
-                continue  # Continue if something went wrong while connecting VPN
-            pyautogui.click(x=652, y=999)
+                continue
+            pyautogui.click(x=652, y=999)  # Open chrome
             time.sleep(3)
-            pyautogui.click(x=170, y=45)
+            pyautogui.click(x=170, y=45)  # Click navigation bar
             time.sleep(3)
-            pyautogui.write(details.sw_url, interval=0.175)
+            pyautogui.write(
+                details.sw_url, interval=0.175
+            )  # Write URL to navigation bar
             time.sleep(1)
-            pyautogui.press("enter")
-            time.sleep(15)
-            pyautogui.click(x=700, y=700)
-            pyautogui.scroll(-10000)
+            pyautogui.press("enter")  # Go to URL
+            time.sleep(15)  # Wait for cloudflare to pass
+            pyautogui.click(
+                x=700, y=700
+            )  # Click somewhere on the page to make sure chrome is the foreground window
+            pyautogui.scroll(-10000)  # Scroll down
             time.sleep(3)
-            pyautogui.click(x=340, y=737)
+            pyautogui.click(x=340, y=737)  # Click email field
             time.sleep(3)
             _, email = super().get_random_user()
             for c in email:
-                keyboard.write(c)
+                keyboard.write(c)  # Write email to email field
                 time.sleep(0.175)
             time.sleep(1)
-            pyautogui.press("enter")
+            pyautogui.press("enter")  # Submit details
+            # time.sleep(3)
+            # pyautogui.click(x=604, y=883)
             time.sleep(3)
-            pyautogui.click(x=604, y=883)
+            pyautogui.click(x=1129, y=53)  # Click clear browsing data extension
             time.sleep(3)
-            pyautogui.click(x=1129, y=53)
+            pyautogui.click(x=898, y=150)  # Clear browsing data
             time.sleep(3)
-            pyautogui.click(x=898, y=150)
+            pyautogui.click(x=1158, y=49)  # Click random user agent extension
             time.sleep(3)
-            pyautogui.click(x=1158, y=49)
+            pyautogui.click(x=994, y=336)  # New user agent
             time.sleep(3)
-            pyautogui.click(x=994, y=336)
-            time.sleep(3)
-            pyautogui.click(x=1250, y=7)
+            pyautogui.click(x=1250, y=7)  # Close chrome
             super().reset(vpn, None, details)
-            print(pygetwindow.getActiveWindowTitle())
             completed += 1
             print(f"Completed {completed} out of {details.amount_to_complete}.")
-            time.sleep(random.randrange(details.extra_time[0], details.extra_time[1]))
+            if (
+                details.extra_time
+                and details.extra_time[0] > 0
+                and details.extra_time[1] > 0
+            ):
+                time.sleep(
+                    random.randrange(details.extra_time[0], details.extra_time[1])
+                )
         print("Finished!")
 
 
 for details in todo:
-    if details.sw_url.find("sweepwidget") != -1:
+    if details.sw_url.find("sweepwidget") != -1 or details.sw_url.find("share-w") != -1:
         bot = SW()
     elif details.sw_url.find("swee.ps") != -1:
         bot = VS()
