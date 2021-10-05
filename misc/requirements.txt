@@ -1,0 +1,7 @@
+PyAutoGUI==0.9.53
+requests==2.25.1
+PyGetWindow==0.0.9
+piapy==0.2.0
+Faker==8.13.2
+keyboard==0.13.5
+selenium==3.141.0

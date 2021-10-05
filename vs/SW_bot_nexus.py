@@ -90,14 +90,14 @@ class Details:
 ######## This where you input details about contest you want to do. See above for meanings
 todo = [
     Details(
-        sw_url="https://sweepwidget.com/view/34700-nscfkdwv/nqwza9-34700",
+        sw_url="https://swee.ps/SFRZz_eNtzWQL",
         amount_to_complete=50,
         has_referral=False,
         referral_name="StygeXD",
         has_email_verification=False,
         has_captcha=False,
         has_bsc_address_field=False,
-        bsc_address_field_id="sw_text_input_5_1",
+        bsc_address_field_id="sw_text_input_10_1",
         extra_time=(0, 0),
     )
 ]
@@ -107,9 +107,9 @@ class Bot:  # Base class for all bots
     def get_random_user(self):
         username = fake_per.name()
         rand = random.random()
-        if rand < 0.25:
+        if rand < 0.2:
             username = username.lower()
-        elif rand < 0.5:
+        elif rand < 0.4:
             username = username.upper()
 
         if random.random() < 0.6:
@@ -421,21 +421,24 @@ class VS(
             time.sleep(1)
             pyautogui.press("enter")  # Go to URL
             time.sleep(15)  # Wait for cloudflare to pass
-            pyautogui.click(
-                x=700, y=700
-            )  # Click somewhere on the page to make sure chrome is the foreground window
-            pyautogui.scroll(-10000)  # Scroll down
+            pyautogui.click(x=902, y=127)
             time.sleep(3)
-            pyautogui.click(x=340, y=737)  # Click email field
+            pyautogui.click(x=703, y=408)  # Click email field
             time.sleep(3)
             _, email = super().get_random_user()
             for c in email:
                 keyboard.write(c)  # Write email to email field
                 time.sleep(0.175)
-            time.sleep(1)
-            pyautogui.press("enter")  # Submit details
-            # time.sleep(3)
-            # pyautogui.click(x=604, y=883)
+            time.sleep(3)
+            pyautogui.click(x=645, y=476)
+            address = super().generate_bsc()
+            for c in address:
+                keyboard.write(c)
+                time.sleep(0.175)
+            time.sleep(3)
+            pyautogui.click(x=640, y=677)
+            time.sleep(3)
+            pyautogui.click(x=774, y=726)
             time.sleep(3)
             pyautogui.click(x=1129, y=53)  # Click clear browsing data extension
             time.sleep(3)

@@ -90,8 +90,8 @@ class Details:
 ######## This where you input details about contest you want to do. See above for meanings
 todo = [
     Details(
-        sw_url="https://sweepwidget.com/view/34700-nscfkdwv/nqwza9-34700",
-        amount_to_complete=50,
+        sw_url="https://swee.ps/SwPhA_FNSTdkT",
+        amount_to_complete=100,
         has_referral=False,
         referral_name="StygeXD",
         has_email_verification=False,
@@ -107,9 +107,9 @@ class Bot:  # Base class for all bots
     def get_random_user(self):
         username = fake_per.name()
         rand = random.random()
-        if rand < 0.25:
+        if rand < 0.2:
             username = username.lower()
-        elif rand < 0.5:
+        elif rand < 0.4:
             username = username.upper()
 
         if random.random() < 0.6:
@@ -434,8 +434,6 @@ class VS(
                 time.sleep(0.175)
             time.sleep(1)
             pyautogui.press("enter")  # Submit details
-            # time.sleep(3)
-            # pyautogui.click(x=604, y=883)
             time.sleep(3)
             pyautogui.click(x=1129, y=53)  # Click clear browsing data extension
             time.sleep(3)

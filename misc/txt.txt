@@ -1,0 +1,22 @@
+Point(x=642, y=539) # Click login using email
+
+Point(x=589, y=538) # Full Name
+
+Point(x=577, y=584) # Email
+
+Point(x=545, y=630) # Month
+
+Point(x=603, y=634) # Day
+
+Point(x=708, y=627) # Year
+
+Point(x=593, y=699) # Wallet
+
+Point(x=630, y=833) # Save
+
+Point(x=881, y=738) # Press Telegram
+
+Point(x=656, y=807) # Join
+
+Point(x=87, y=11) # Main Window
+ 
