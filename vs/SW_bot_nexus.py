@@ -91,7 +91,7 @@ class Details:
 todo = [
     Details(
         sw_url="https://swee.ps/SFRZz_eNtzWQL",
-        amount_to_complete=50,
+        amount_to_complete=200,
         has_referral=False,
         referral_name="StygeXD",
         has_email_verification=False,
@@ -423,22 +423,22 @@ class VS(
             time.sleep(15)  # Wait for cloudflare to pass
             pyautogui.click(x=902, y=127)
             time.sleep(3)
-            pyautogui.click(x=703, y=408)  # Click email field
+            pyautogui.click(x=703, y=548)  # Click email field
             time.sleep(3)
             _, email = super().get_random_user()
             for c in email:
-                keyboard.write(c)  # Write email to email field
+                keyboard.write(c)  # Write email to email field0d4
                 time.sleep(0.175)
             time.sleep(3)
-            pyautogui.click(x=645, y=476)
+            pyautogui.click(x=645, y=616)
             address = super().generate_bsc()
             for c in address:
                 keyboard.write(c)
                 time.sleep(0.175)
             time.sleep(3)
-            pyautogui.click(x=640, y=677)
+            pyautogui.click(x=640, y=817)
             time.sleep(3)
-            pyautogui.click(x=774, y=726)
+            pyautogui.click(x=774, y=866)
             time.sleep(3)
             pyautogui.click(x=1129, y=53)  # Click clear browsing data extension
             time.sleep(3)
