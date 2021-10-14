@@ -17,6 +17,7 @@ from webdriver_manager.chrome import ChromeDriverManager
 from faker import Faker
 
 import zipfile
+import shutil
 import random
 import time
 import requests
@@ -31,14 +32,11 @@ Faker.seed(time.time())
 
 json_data = "application/json"
 hex_chars = ["a", "b", "c", "d", "e", "f"]
-LOG_PATH = (
+log_path = (
     pathlib.Path().home() / "Desktop" / "bot_log.txt"
 )  # Where log file will be stored (if enabled)
-
-PROFILE_PATH = rf"{pathlib.Path().home()}\AppData\Local\Google\Chrome\User Data"  # Path to browser profile
-# PROFILE_PATH = r"C:\Users\glorious\AppData\Local\Google\Chrome\User Data"  # Path to browser profile
-TEMP_PATH = rf"{pathlib.Path().home()}\AppData\Local\Temp"  # Path to temporary files folder. Needs to be cleansed from time to time because otherwise it gets too big
-# TEMP_PATH = r"C:\Users\glorious\AppData\Local\Temp"  # Path to temporary files folder. Needs to be cleansed from time to time because otherwise it gets too big
+profile_path = r"C:\Users\glorious\AppData\Local\Google\Chrome\User Data"  # Path to browser profile
+temp_path = r"C:\Users\glorious\AppData\Local\Temp"  # Path to temporary files folder. Needs to be cleansed from time to time because otherwise it gets too big
 
 PROXY_HOST = "x.botproxy.net"
 PROXY_PORT = 8080
@@ -142,14 +140,14 @@ class Details:
 ######## This where you input details about contest you want to do. See above for meanings
 todo = [
     Details(
-        sw_url="https://share-w.in/e8wu7u-35929",
+        sw_url="https://sweepwidget.com/view/35614-ktu6peh8/43tzzu-35614",
         amount_to_complete=50,
         has_referral=False,
         referral_name="StygeXD",
         has_email_verification=False,
         has_captcha=False,
-        has_bsc_address_field=True,
-        bsc_address_field_id="sw_text_input_4_1",
+        has_bsc_address_field=False,
+        bsc_address_field_id="sw_text_input_5_1",
     )
 ]
 
@@ -179,15 +177,16 @@ class Bot:  # Base class for all bots
 
         return username, email
 
-    def get_driver(self, url):
+    def get_driver(url, use_proxy=True):
         options = webdriver.ChromeOptions()
-        pluginfile = "proxy_auth_plugin.zip"
-        with zipfile.ZipFile(pluginfile, "w") as zp:
-            zp.writestr("manifest.json", manifest_json)
-            zp.writestr("background.js", background_js)
-        options.add_extension(pluginfile)
+        if use_proxy:
+            pluginfile = "proxy_auth_plugin.zip"
+            with zipfile.ZipFile(pluginfile, "w") as zp:
+                zp.writestr("manifest.json", manifest_json)
+                zp.writestr("background.js", background_js)
+            options.add_extension(pluginfile)
         options.add_argument("--ignore-certificate-errors")
-        options.add_argument("user-data-dir=" + PROFILE_PATH)
+        options.add_argument("user-data-dir=" + profile_path)
         driver = webdriver.Chrome(
             executable_path=ChromeDriverManager().install(), chrome_options=options
         )
@@ -233,9 +232,8 @@ class SW(Bot):  # Sweep Widget
         driver = None
         while completed < details.amount_to_complete:
             try:
-                driver = super().get_driver(details.sw_url)
-            except Exception as e:
-                print(traceback.format_exc())
+                driver = self.get_driver(details.sw_url)
+            except Exception as _:
                 continue
             try:
                 if details.has_referral:
@@ -278,7 +276,8 @@ class SW(Bot):  # Sweep Widget
                 )
                 super().reset(driver)
                 continue
-            except Exception as _:
+            except Exception as e:
+                traceback.print_exc()
                 None
             completed += 1
             print(
