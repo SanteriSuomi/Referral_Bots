@@ -1,5 +1,5 @@
 ###
-### Author Santeri Suomi (boughtthetopkms on telegram), this is WORK IN PROGRESS
+### Author Santeri Suomi (@boughtthetopkms on telegram), this is WORK IN PROGRESS
 ###
 
 from selenium import webdriver
@@ -12,10 +12,11 @@ from selenium.common.exceptions import (
     UnexpectedAlertPresentException,
 )
 from selenium.common.exceptions import NoSuchWindowException
+from webdriver_manager.chrome import ChromeDriverManager
 
 from faker import Faker
-from piapy import PiaVpn
 
+import zipfile
 import shutil
 import random
 import time
@@ -24,21 +25,81 @@ import re
 import pyautogui
 import keyboard
 import pathlib
+import traceback
 
 random.seed(time.time())
 Faker.seed(time.time())
-vpn = PiaVpn()
+
 json_data = "application/json"
 hex_chars = ["a", "b", "c", "d", "e", "f"]
 log_path = (
     pathlib.Path().home() / "Desktop" / "bot_log.txt"
 )  # Where log file will be stored (if enabled)
-executable_path = r"C:\Users\glorious\geckodriver.exe"  # Path to web driver
-profile_path = r"C:\Users\glorious\AppData\Roaming\Mozilla\Firefox\Profiles\qcdanr2x.default-release"  # Path to firefox profile
+profile_path = r"C:\Users\glorious\AppData\Local\Google\Chrome\User Data"  # Path to browser profile
 temp_path = r"C:\Users\glorious\AppData\Local\Temp"  # Path to temporary files folder. Needs to be cleansed from time to time because otherwise it gets too big
 
+PROXY_HOST = "x.botproxy.net"
+PROXY_PORT = 8080
+PROXY_USER = "pxu26687-0"
+PROXY_PASS = "eyJjf9CAUaOeAZptu4ux"
 
-vpn_regions = [r for r in vpn.regions() if r.find("streaming") == -1]
+manifest_json = """
+{
+    "version": "1.0.0",
+    "manifest_version": 2,
+    "name": "Chrome Proxy",
+    "permissions": [
+        "proxy",
+        "tabs",
+        "unlimitedStorage",
+        "storage",
+        "<all_urls>",
+        "webRequest",
+        "webRequestBlocking"
+    ],
+    "background": {
+        "scripts": ["background.js"]
+    },
+    "minimum_chrome_version":"22.0.0"
+}
+"""
+
+background_js = """
+var config = {
+        mode: "fixed_servers",
+        rules: {
+          singleProxy: {
+            scheme: "http",
+            host: "%s",
+            port: parseInt(%s)
+          },
+          bypassList: ["localhost"]
+        }
+      };
+
+chrome.proxy.settings.set({value: config, scope: "regular"}, function() {});
+
+function callbackFn(details) {
+    return {
+        authCredentials: {
+            username: "%s",
+            password: "%s"
+        }
+    };
+}
+
+chrome.webRequest.onAuthRequired.addListener(
+            callbackFn,
+            {urls: ["<all_urls>"]},
+            ['blocking']
+);
+""" % (
+    PROXY_HOST,
+    PROXY_PORT,
+    PROXY_USER,
+    PROXY_PASS,
+)
+
 email_domains = [
     "gmail.com",
     "outlook.com",
@@ -79,7 +140,7 @@ class Details:
 ######## This where you input details about contest you want to do. See above for meanings
 todo = [
     Details(
-        sw_url="https://sweepwidget.com/view/33937-643t8fwv/978f34-33937",
+        sw_url="https://sweepwidget.com/view/35614-ktu6peh8/43tzzu-35614",
         amount_to_complete=50,
         has_referral=False,
         referral_name="StygeXD",
@@ -100,7 +161,7 @@ class Bot:  # Base class for all bots
         elif rand < 0.4:
             username = username.upper()
 
-        if random.random() < 0.6:
+        if random.random() < 0.5:
             username_email = fake_email.name()
         else:
             username_email = fake_email.last_name() + fake_email.first_name()
@@ -116,50 +177,35 @@ class Bot:  # Base class for all bots
 
         return username, email
 
-    def connect_vpn(self):
-        try:
-            vpn.set_region(server=random.choice(vpn_regions))
-            vpn.connect(verbose=False, timeout=20)
-            while vpn.status() != "Connected":
-                time.sleep(0.01)
-            return True
-        except Exception as _:
-            return False
-
-    def get_browser_driver(self):
-        shutil.rmtree(temp_path, ignore_errors=True)
-        firefox_capabilities = webdriver.DesiredCapabilities.FIREFOX
-        firefox_capabilities["marionette"] = True
-        PROXY = "localhost:3128"
-        firefox_capabilities["proxy"] = {
-            "proxyType": "MANUAL",
-            "httpProxy": PROXY,
-            "ftpProxy": PROXY,
-            "sslProxy": PROXY,
-        }
-        profile = webdriver.FirefoxProfile(profile_path)
-        driver = webdriver.Firefox(
-            executable_path=executable_path,
-            firefox_profile=profile,
-            desired_capabilities=firefox_capabilities,
+    def get_driver(url, use_proxy=True):
+        options = webdriver.ChromeOptions()
+        if use_proxy:
+            pluginfile = "proxy_auth_plugin.zip"
+            with zipfile.ZipFile(pluginfile, "w") as zp:
+                zp.writestr("manifest.json", manifest_json)
+                zp.writestr("background.js", background_js)
+            options.add_extension(pluginfile)
+        options.add_argument("--ignore-certificate-errors")
+        options.add_argument("user-data-dir=" + profile_path)
+        driver = webdriver.Chrome(
+            executable_path=ChromeDriverManager().install(), chrome_options=options
         )
-        driver.set_page_load_timeout(20)
+        driver.get(url)
         return driver
 
-    def reset(self, vpn):
-        pyautogui.click(x=1147, y=68)  # Clean cache
-        time.sleep(1)
-        pyautogui.click(x=997, y=157)
-        time.sleep(1)
-        pyautogui.click(x=1221, y=69)  # New user agent
-        time.sleep(1)
-        pyautogui.click(x=1065, y=348)
-        vpn.disconnect()
-        while vpn.status() != "Disconnected":
-            time.sleep(0.01)
+    def reset(self, driver):
+        pyautogui.click(x=1132, y=50)  # Clean cache
+        time.sleep(1.5)
+        pyautogui.click(x=897, y=146)
+        time.sleep(1.5)
+        pyautogui.click(x=1157, y=53)  # New user agent
+        time.sleep(1.5)
+        pyautogui.click(x=989, y=321)
+        time.sleep(1.5)
+        driver.quit()
 
     def wait(self):
-        time.sleep(random.uniform(1, 2.5))
+        time.sleep(random.uniform(2, 4))
 
     def type_to_element(self, element, str):
         for c in str:
@@ -179,31 +225,14 @@ class Bot:  # Base class for all bots
                 address += random_char
         return address
 
-    # def get_proxy():
-    #     url = "https://sweepwidget.com"
-    #     proxy_host = "proxy.zyte.com"
-    #     proxy_port = "8011"
-    #     proxy_auth = (
-    #         "3995ae73115447459aaa4c7a68068f23:"  # Make sure to include ':' at the end
-    #     )
-    #     proxies = {
-    #         "https": "http://{}@{}:{}/".format(proxy_auth, proxy_host, proxy_port),
-    #         "http": "http://{}@{}:{}/".format(proxy_auth, proxy_host, proxy_port),
-    #     }
-    #     result = requests.get(url, proxies=proxies, verify=False)
-
 
 class SW(Bot):  # Sweep Widget
     def run(self, details):
         completed = 0
-        driver = super().get_browser_driver()
+        driver = None
         while completed < details.amount_to_complete:
-            if not super().connect_vpn():
-                continue
             try:
-                self.wait()
-                driver.get(details.sw_url)
-                self.wait()
+                driver = self.get_driver(details.sw_url)
             except Exception as _:
                 continue
             try:
@@ -233,7 +262,7 @@ class SW(Bot):  # Sweep Widget
                 if details.has_email_verification:
                     self.solve_email_verification(driver, token, email_name)
 
-                WebDriverWait(driver, 5).until(
+                WebDriverWait(driver, 6).until(
                     EC.presence_of_element_located((By.CLASS_NAME, "sw_share_link"))
                 )
             except (
@@ -242,19 +271,23 @@ class SW(Bot):  # Sweep Widget
                 UnexpectedAlertPresentException,
                 StaleElementReferenceException,
             ) as _:
-                super().reset(vpn)
+                print(
+                    f"{driver.title}: completed {completed} out of {details.amount_to_complete}."
+                )
+                super().reset(driver)
                 continue
-            except Exception as _:
+            except Exception as e:
+                traceback.print_exc()
                 None
             completed += 1
             print(
                 f"{driver.title}: completed {completed} out of {details.amount_to_complete}."
             )
-            super().reset(vpn)
+            super().reset(driver)
         print("Finished!")
 
     def solve_referral(self, driver, details):
-        referral_field = WebDriverWait(driver, 20).until(
+        referral_field = WebDriverWait(driver, 30).until(
             EC.presence_of_element_located((By.NAME, "referral_source"))
         )
         if random.random() < 0.33:
@@ -267,14 +300,14 @@ class SW(Bot):  # Sweep Widget
         self.wait()
 
     def solve_captcha(self, driver):
-        WebDriverWait(driver, 20).until(
+        WebDriverWait(driver, 30).until(
             EC.presence_of_element_located((By.CLASS_NAME, "status"), "Solved")
         )
         driver.find_element_by_name("security_check_submit").click()
         self.wait()
 
     def solve_username(self, driver, username):
-        username_field = WebDriverWait(driver, 10).until(
+        username_field = WebDriverWait(driver, 30).until(
             EC.presence_of_element_located((By.NAME, "sw__login_name"))
         )
         username_field.clear()
@@ -290,22 +323,27 @@ class SW(Bot):  # Sweep Widget
         self.wait()
 
     def solve_arithmetic(self, driver):
-        skill_question = driver.find_element_by_css_selector(
-            "#stq_skill_question span:first-child"
-        ).text
-        sq_numbers = []
-        cur_num = ""
-        for c in skill_question:
-            if c.isdigit():
-                cur_num += c
-            else:
-                if len(cur_num) > 0:
-                    sq_numbers.append(int(cur_num))
-                cur_num = ""
-        skill_question_answer = driver.find_element_by_id("stq_skill_question_answer")
-        sq_answer = str(sq_numbers[0] + sq_numbers[1])
-        super().type_to_element(skill_question_answer, sq_answer)
-        self.wait()
+        try:
+            skill_question = driver.find_element_by_css_selector(
+                "#stq_skill_question span:first-child"
+            ).text
+            sq_numbers = []
+            cur_num = ""
+            for c in skill_question:
+                if c.isdigit():
+                    cur_num += c
+                else:
+                    if len(cur_num) > 0:
+                        sq_numbers.append(int(cur_num))
+                    cur_num = ""
+            skill_question_answer = driver.find_element_by_id(
+                "stq_skill_question_answer"
+            )
+            sq_answer = str(sq_numbers[0] + sq_numbers[1])
+            super().type_to_element(skill_question_answer, sq_answer)
+            self.wait()
+        except Exception as _:
+            None
 
     def get_email_details(self):
         response_create = requests.put(
@@ -327,7 +365,7 @@ class SW(Bot):  # Sweep Widget
         )
         enter_button.click()
         try:
-            WebDriverWait(driver, 5).until(EC.alert_is_present())
+            WebDriverWait(driver, 6).until(EC.alert_is_present())
             try:
                 driver.switch_to.alert.dismiss()
             except Exception as _:
@@ -378,7 +416,6 @@ class SW(Bot):  # Sweep Widget
         self.wait()
 
 
-# https://stackoverflow.com/questions/52394408/how-to-use-chrome-profile-in-selenium-webdriver-python-3
 class VS(
     Bot
 ):  # ViralSweep, THIS DOES NOT WORK FOR ALL VIRAL SWEEPS. WILL NEED TO TUNE THE CODE ACCORDINGLY, BECAUSE SELENIUM DOES NOT WORK FOR VIRALSWEEP BECAUSE OF FUCKING CLOUDFLARE. Also, this is very work in progress.
@@ -396,7 +433,7 @@ class VS(
             pyautogui.press("enter")  # Submit details
 
             self.close()
-            super().reset(vpn)
+            super().reset()
             completed += 1
             print(f"Completed {completed} out of {details.amount_to_complete}.")
         print("Finished!")
@@ -429,146 +466,9 @@ class VS(
         time.sleep(2)
 
 
-class Gleam(Bot):
-    def run(self, details):
-        completed = 0
-        while completed < details.amount_to_complete:
-            if not super().connect_vpn():
-                continue
-            driver = self.get_browser_driver(details)
-            # pyautogui.click(x=652, y=999)  # Open chrome
-            # time.sleep(3)
-            # pyautogui.click(x=170, y=45)  # Click navigation bar
-            # time.sleep(3)
-            # pyautogui.write(
-            #     details.sw_url, interval=0.175
-            # )  # Write URL to navigation bar
-            # time.sleep(1)
-            # pyautogui.press("enter")  # Go to URL
-            time.sleep(10)
-
-            # Point(x=642, y=534) # Click login using email
-            pyautogui.click(x=642, y=534)
-            time.sleep(3)
-
-            # Point(x=589, y=538) # Full Name
-            pyautogui.click(x=589, y=538)
-            username, email = super().get_random_user()
-            for c in username:
-                keyboard.write(c)  # Write username
-                time.sleep(0.175)
-            time.sleep(3)
-
-            # Point(x=577, y=584) # Email
-            pyautogui.click(x=577, y=584)
-            for c in email:
-                keyboard.write(c)  # Write email to email field
-                time.sleep(0.175)
-            time.sleep(3)
-
-            # Point(x=545, y=630) # Month
-            pyautogui.click(x=545, y=630)
-            month = str(random.randint(1, 12))
-            for c in month:
-                keyboard.write(c)
-                time.sleep(0.175)
-            time.sleep(3)
-
-            # Point(x=603, y=634) # Day
-            pyautogui.click(x=603, y=634)
-            day = str(random.randint(1, 30))
-            for c in day:
-                keyboard.write(c)
-                time.sleep(0.175)
-            time.sleep(3)
-
-            # Point(x=708, y=627) # Year
-            pyautogui.click(x=708, y=627)
-            day = str(random.randint(1970, 2000))
-            for c in day:
-                keyboard.write(c)
-                time.sleep(0.175)
-            time.sleep(3)
-
-            # Point(x=593, y=699) # Wallet
-            pyautogui.click(x=593, y=699)
-            address = super().generate_bsc()
-            for c in address:
-                keyboard.write(c)
-                time.sleep(0.175)
-            time.sleep(3)
-
-            # Point(x=630, y=833) # Save
-            pyautogui.click(x=630, y=833)
-            time.sleep(3)
-
-            # Point(x=881, y=738) # Press Telegram
-            pyautogui.click(x=881, y=738)
-            time.sleep(3)
-
-            # Point(x=656, y=807) # Join
-            pyautogui.click(x=656, y=807)
-            time.sleep(3)
-
-            # Point(x=87, y=11) # Main Window
-            pyautogui.click(x=87, y=11)
-            time.sleep(3)
-
-            # Point(x=632, y=875) # Continue
-            pyautogui.click(x=632, y=875)
-            time.sleep(120)
-            driver.find_element_by_class_name("button-submit button").click()
-            # # Point(x=516, y=417) # Continue
-            #             pyautogui.click(x=516, y=417)
-            #             time.sleep(20)
-
-            pyautogui.click(x=1129, y=53)  # Click clear browsing data extension
-            time.sleep(3)
-            pyautogui.click(x=898, y=150)  # Clear browsing data
-            time.sleep(3)
-            pyautogui.click(x=1158, y=49)  # Click random user agent extension
-            time.sleep(3)
-            pyautogui.click(x=994, y=336)  # New user agent
-            time.sleep(3)
-            pyautogui.click(x=1250, y=7)  # Close chrome
-            super().reset(vpn, None, details)
-            completed += 1
-            print(f"Completed {completed} out of {details.amount_to_complete}.")
-            if (
-                details.extra_time
-                and details.extra_time[0] > 0
-                and details.extra_time[1] > 0
-            ):
-                time.sleep(
-                    random.randrange(details.extra_time[0], details.extra_time[1])
-                )
-        print("Finished!")
-
-    def get_browser_driver(self, details):
-        shutil.rmtree(temp_path, ignore_errors=True)
-        options = webdriver.ChromeOptions()
-        options.add_argument(
-            r"user-data-dir=C:\Users\glorious\AppData\Local\Google\Chrome\User Data"
-        )
-        options.add_argument("disable-infobars")
-        options.add_experimental_option("excludeSwitches", ["enable-automation"])
-        options.add_experimental_option("useAutomationExtension", False)
-        driver = webdriver.Chrome(
-            executable_path=r"C:\chromedriver.exe", chrome_options=options
-        )
-        try:
-            driver.get(details.sw_url)
-        except Exception as _:
-            # write_to_log()
-            return None
-        return driver
-
-
 for details in todo:
     if details.sw_url.find("sweepwidget") != -1 or details.sw_url.find("share-w") != -1:
         bot = SW()
     elif details.sw_url.find("swee.ps") != -1:
         bot = VS()
-    elif details.sw_url.find("wn.nr") != -1:
-        bot = Gleam()
     bot.run(details)
