@@ -24,28 +24,45 @@ import re
 import pyautogui
 import keyboard
 import pathlib
-import traceback
+import os
+import pickle
 
 random.seed(time.time())
 Faker.seed(time.time())
 
-json_data = "application/json"
-hex_chars = ["a", "b", "c", "d", "e", "f"]
+JSON_DATA = "application/json"
+HEX_CHARS = ["a", "b", "c", "d", "e", "f"]
 LOG_PATH = (
     pathlib.Path().home() / "Desktop" / "bot_log.txt"
 )  # Where log file will be stored (if enabled)
+ACCOUNTS_PATH = {pathlib.Path().home() / "Desktop" / "accounts.bin"}
 
 PROFILE_PATH = rf"{pathlib.Path().home()}\AppData\Local\Google\Chrome\User Data"  # Path to browser profile
-# PROFILE_PATH = r"C:\Users\glorious\AppData\Local\Google\Chrome\User Data"  # Path to browser profile
 TEMP_PATH = rf"{pathlib.Path().home()}\AppData\Local\Temp"  # Path to temporary files folder. Needs to be cleansed from time to time because otherwise it gets too big
-# TEMP_PATH = r"C:\Users\glorious\AppData\Local\Temp"  # Path to temporary files folder. Needs to be cleansed from time to time because otherwise it gets too big
 
-PROXY_HOST = "x.botproxy.net"
-PROXY_PORT = 8080
-PROXY_USER = "pxu26687-0"
-PROXY_PASS = "eyJjf9CAUaOeAZptu4ux"
+# PROXY_HOST = "x.botproxy.net"
+# PROXY_PORT = 8080
+# PROXY_USER = "pxu26687-0"
+# PROXY_PASS = "eyJjf9CAUaOeAZptu4ux"
 
-manifest_json = """
+PROXY_HOST = "95.216.13.177"
+PROXY_PORT = 4583
+# PROXY_USER = "pxu26687-0"
+# PROXY_PASS = "eyJjf9CAUaOeAZptu4ux"
+
+
+FAKE_PER = Faker(["en", "en_GB", "en_IE", "en_NZ", "en_TH", "en_US"])
+FAKE_EMAIL = Faker(["en", "en_GB", "en_IE", "en_NZ", "en_TH", "en_US"])
+
+EMAIL_DOMAINS = [
+    "gmail.com",
+    "outlook.com",
+    "yahoo.com",
+    "hotmail.com",
+    "gmx.com",
+]
+
+MANIFEST_JSON = """
 {
     "version": "1.0.0",
     "manifest_version": 2,
@@ -66,7 +83,7 @@ manifest_json = """
 }
 """
 
-background_js = """
+BACKGROUND_JS = """
 var config = {
         mode: "fixed_servers",
         rules: {
@@ -84,8 +101,8 @@ chrome.proxy.settings.set({value: config, scope: "regular"}, function() {});
 function callbackFn(details) {
     return {
         authCredentials: {
-            username: "%s",
-            password: "%s"
+            username: "", 
+            password: ""
         }
     };
 }
@@ -98,20 +115,29 @@ chrome.webRequest.onAuthRequired.addListener(
 """ % (
     PROXY_HOST,
     PROXY_PORT,
-    PROXY_USER,
-    PROXY_PASS,
+    # PROXY_USER,
+    # PROXY_PASS,
 )
 
-email_domains = [
-    "gmail.com",
-    "outlook.com",
-    "yahoo.com",
-    "hotmail.com",
-    "gmx.com",
-]
 
-fake_per = Faker(["en", "en_GB", "en_IE", "en_NZ", "en_TH", "en_US"])
-fake_email = Faker(["en", "en_GB", "en_IE", "en_NZ", "en_TH", "en_US"])
+# def get_accounts():
+#     with open(ACCOUNTS_PATH, "rb") as f:
+#         return dict(pickle.load(f))
+
+
+# def update_accounts(ip, account):
+#     if not ip in accounts:
+#         accounts[ip] = account
+
+
+# accounts = get_accounts()
+
+
+class Account:
+    def __init__(self, email, username, address=None) -> None:
+        self.email = email
+        self.username = username
+        self.address = address
 
 
 class Details:
@@ -142,21 +168,21 @@ class Details:
 ######## This where you input details about contest you want to do. See above for meanings
 todo = [
     Details(
-        sw_url="https://share-w.in/e8wu7u-35929",
+        sw_url="https://share-w.in/q8g1yo-35339",
         amount_to_complete=50,
         has_referral=False,
         referral_name="StygeXD",
         has_email_verification=False,
         has_captcha=False,
-        has_bsc_address_field=True,
-        bsc_address_field_id="sw_text_input_4_1",
+        has_bsc_address_field=False,
+        bsc_address_field_id="sw_text_input_18_1",
     )
 ]
 
 
 class Bot:  # Base class for all bots
     def get_random_user(self):
-        username = fake_per.name()
+        username = FAKE_PER.name()
         rand = random.random()
         if rand < 0.2:
             username = username.lower()
@@ -164,18 +190,18 @@ class Bot:  # Base class for all bots
             username = username.upper()
 
         if random.random() < 0.5:
-            username_email = fake_email.name()
+            username_email = FAKE_EMAIL.name()
         else:
-            username_email = fake_email.last_name() + fake_email.first_name()
+            username_email = FAKE_EMAIL.last_name() + FAKE_EMAIL.first_name()
 
         if random.random() < 0.8:
             username_email = username_email.lower()
         username_email = "".join(c for c in username_email if c.isalpha())
 
         if random.random() < 0.5:
-            email = f"{username_email}{int(random.uniform(0, 100))}@{random.choice(email_domains)}"
+            email = f"{username_email}{int(random.uniform(0, 100))}@{random.choice(EMAIL_DOMAINS)}"
         else:
-            email = f"{username_email}@{random.choice(email_domains)}"
+            email = f"{username_email}@{random.choice(EMAIL_DOMAINS)}"
 
         return username, email
 
@@ -183,8 +209,8 @@ class Bot:  # Base class for all bots
         options = webdriver.ChromeOptions()
         pluginfile = "proxy_auth_plugin.zip"
         with zipfile.ZipFile(pluginfile, "w") as zp:
-            zp.writestr("manifest.json", manifest_json)
-            zp.writestr("background.js", background_js)
+            zp.writestr("manifest.json", MANIFEST_JSON)
+            zp.writestr("background.js", BACKGROUND_JS)
         options.add_extension(pluginfile)
         options.add_argument("--ignore-certificate-errors")
         options.add_argument("user-data-dir=" + PROFILE_PATH)
@@ -217,7 +243,7 @@ class Bot:  # Base class for all bots
         address = "0x"
         for _ in range(40):
             random_number = str(random.randint(0, 9))
-            random_char = random.choice(hex_chars)
+            random_char = random.choice(HEX_CHARS)
             if random.random() < 0.5:
                 address += random_number
             else:
@@ -234,8 +260,7 @@ class SW(Bot):  # Sweep Widget
         while completed < details.amount_to_complete:
             try:
                 driver = super().get_driver(details.sw_url)
-            except Exception as e:
-                print(traceback.format_exc())
+            except Exception as _:
                 continue
             try:
                 if details.has_referral:
@@ -387,7 +412,7 @@ class SW(Bot):  # Sweep Widget
             response_ids = requests.get(
                 url=f"https://www.developermail.com/api/v1/mailbox/{email_name}",
                 headers={
-                    "accept": json_data,
+                    "accept": JSON_DATA,
                     "X-MailboxToken": token,
                 },
             )
@@ -399,9 +424,9 @@ class SW(Bot):  # Sweep Widget
         response_msg = requests.post(
             url=f"https://www.developermail.com/api/v1/mailbox/{email_name}/messages",
             headers={
-                "accept": json_data,
+                "accept": JSON_DATA,
                 "X-MailboxToken": token,
-                "Content-Type": json_data,
+                "Content-Type": JSON_DATA,
             },
             data=email_data,
         )
